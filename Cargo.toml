@@ -1,0 +1,23 @@
+[package]
+name = "koala_diff"
+version = "0.1.0"
+edition = "2021"
+description = "Blazingly fast data comparison tool for Python."
+
+[lib]
+name = "koala_diff"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+polars = { version = "0.41", features = ["lazy", "parquet", "csv-file", "dtype-struct"] }
+thiserror = "1.0"
+indicatif = "0.17" # Progress bar
+ahash = "0.8"      # Fast hashing
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
