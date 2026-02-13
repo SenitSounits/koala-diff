@@ -32,9 +32,9 @@ Built in **Rust** 🦀 for speed, wrapped in **Python** 🐍 for ease-of-use. It
 ### 🚀 Why Koala Diff?
 
 *   **Zero-Copy Streaming:** Compare 100GB files on a laptop without crashing RAM.
-*   **SIMD Hashing:** Uses state-of-the-art hashing algorithms to detect changes in microseconds.
-*   **Polars Integration:** Leverages the Polars engine for blazing fast I/O.
-*   **Visual Reports:** Auto-generates comprehensive HTML difference reports for stakeholders.
+*   **Rust-Powered Analytics:** Go beyond row counts. Track **Value Variance**, **Null Drift**, and **Match Integrity** per column.
+*   **Professional Dashboards:** Auto-generates premium, stakeholder-ready HTML reports with status badges and join attribution.
+*   **Deep-Dive API:** Extract mismatched records as Polars DataFrames for instant remediation.
 
 ---
 
@@ -46,23 +46,32 @@ pip install koala-diff
 
 ## ⚡ Quick Start
 
-### 1. Python API
+### 1. Generate a "Pro" Report
 
 ```python
 from koala_diff import DataDiff, HtmlReporter
 
-# Initialize the differ with your primary keys
+# Initialize with primary keys
 differ = DataDiff(key_columns=["user_id"])
 
-# Run comparison (Rust engine takes over here)
-result = differ.compare(
-    "s3://production/users_v1.parquet", 
-    "s3://staging/users_v2.parquet"
-)
+# Run comparison
+result = differ.compare("source.parquet", "target.parquet")
 
-# Generate a report
-reporter = HtmlReporter("diff_report.html")
+# Generate a professional dashboard
+reporter = HtmlReporter("data_quality_report.html")
 reporter.generate(result)
+```
+
+### 2. Mismatch Deep-Dive
+
+Need to fix the data? Pull the exact differences directly into Python:
+
+```python
+# Get a Polars DataFrame of ONLY mismatched rows
+mismatch_df = differ.get_mismatch_df()
+
+# Analyze variance or push to a remediation pipeline
+print(mismatch_df.head())
 ```
 
 ### 2. CLI Usage (Coming Soon)

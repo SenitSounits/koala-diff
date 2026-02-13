@@ -2,12 +2,11 @@
 #
 # The Python wrapper that exposes the Rust binary.
 
-import json
+import polars as pl
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 # This import assumes the package was built and installed
-# When developing locally, you might need to build first (maturin develop)
 try:
     from ._internal import diff_files as _rust_diff_files
 except ImportError:
@@ -17,82 +16,67 @@ except ImportError:
 
 class DataDiff:
     """
-    Main class for comparing datasets.
+    Main entry point for comparing datasets.
     """
     def __init__(self, key_columns: List[str]):
         self.key_columns = key_columns
+        self.last_result = None
+        self.file_a = None
+        self.file_b = None
 
     def compare(self, file_a: str, file_b: str) -> Dict[str, Any]:
         """
-        Runs the Rust engine to compare two files.
-        Args:
-            file_a: Path to first file (CSV/Parquet).
-            file_b: Path to second file.
-        Returns:
-            Dict containing diff statistics.
+        Compares two files and returns a dictionary of results.
         """
+        self.file_a = str(file_a)
+        self.file_b = str(file_b)
+        
         # Validate files exist
-        if not Path(file_a).exists():
-            raise FileNotFoundError(f"File not found: {file_a}")
-        if not Path(file_b).exists():
-            raise FileNotFoundError(f"File not found: {file_b}")
+        if not Path(self.file_a).exists():
+            raise FileNotFoundError(f"File not found: {self.file_a}")
+        if not Path(self.file_b).exists():
+            raise FileNotFoundError(f"File not found: {self.file_b}")
 
         # Call Rust!
-        # This will be blazing fast compared to loading Python objects.
-        print(f"🐨 Comparing {file_a} vs {file_b} using Rust engine...")
-        result = _rust_diff_files(str(file_a), str(file_b), self.key_columns)
+        print(f"🐨 Comparing {self.file_a} vs {self.file_b} using Rust engine...")
+        result = _rust_diff_files(self.file_a, self.file_b, self.key_columns)
+        self.last_result = result
         
         return result
 
-    def generate_html_report(self, diff_result: Dict[str, Any], output_path: str = "diff_report.html"):
+    def get_mismatch_df(self) -> pl.DataFrame:
         """
-        Generates a beautiful HTML report from the diff result.
+        Returns a Polars DataFrame containing rows that exist in both files
+        but have differing values in at least one column.
         """
-        from jinja2 import Template
-        
-        # Simple template for MVP
-        template_str = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Koala Diff Report</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; background: #f4f4f9; }
-                .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-                h1 { color: #2c3e50; }
-                .stat { font-size: 24px; font-weight: bold; color: #3498db; }
-                .label { font-size: 14px; color: #7f8c8d; }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h1>🐨 Koala Diff Report</h1>
-                <p>Comparison Result</p>
-            </div>
+        if not self.file_a or not self.file_b:
+            raise ValueError("No comparison has been run yet.")
             
-            <div class="card">
-                <h3>Summary</h3>
-                <div><span class="stat">{{ matched }}</span> <span class="label">Rows Matched</span></div>
-                <div><span class="stat">{{ added }}</span> <span class="label">Rows Added (in New)</span></div>
-                <div><span class="stat">{{ removed }}</span> <span class="label">Rows Removed (from Old)</span></div>
-            </div>
+        # Read files
+        def read_df(path):
+            if path.endswith(".parquet"):
+                return pl.read_parquet(path)
+            return pl.read_csv(path)
 
-            <div class="card">
-                <h3>Modified Columns</h3>
-                <ul>
-                {% for col in modified_cols %}
-                    <li>{{ col }}</li>
-                {% endfor %}
-                </ul>
-            </div>
-        </body>
-        </html>
-        """
+        df_a = read_df(self.file_a)
+        df_b = read_df(self.file_b)
+
+        # Join on keys
+        inner = df_a.join(df_b, on=self.key_columns, suffix="_right")
         
-        template = Template(template_str)
-        html_content = template.render(**diff_result)
+        # Build a filter mask for any column difference
+        mask = None
+        for col in df_a.columns:
+            if col in self.key_columns:
+                continue
+            if col in df_b.columns:
+                # Compare values and handle nulls
+                col_diff = (pl.col(col) != pl.col(f"{col}_right")) | (pl.col(col).is_null() != pl.col(f"{col}_right").is_null())
+                if mask is None:
+                    mask = col_diff
+                else:
+                    mask = mask | col_diff
         
-        with open(output_path, "w") as f:
-            f.write(html_content)
-            
-        print(f"✅ Report generated: {output_path}")
+        if mask is not None:
+            return inner.filter(mask)
+        return pl.DataFrame(schema=inner.schema)
