@@ -4,7 +4,6 @@
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use polars::prelude::*;
-use std::collections::HashSet;
 
 /// Compares two CSV or Parquet files and returns a difference summary
 /// 
@@ -25,19 +24,21 @@ use std::collections::HashSet;
 ///         "null_counts": dict,        // New! { "col_name": [nulls_in_a, nulls_in_b] }
 ///     }
 #[pyfunction]
-fn diff_files(py: Python, file_a: String, file_b: String, key_cols: Vec<String>) -> PyResult<PyObject> {
+fn diff_files(py: Python, file_a: String, file_b: String, _key_cols: Vec<String>) -> PyResult<PyObject> {
     // 1. Read files lazily using Polars
     // In a real implementation, we'd handle CSV vs Parquet detection.
     // For MVP, assume CSV.
-    let df_a = CsvReader::from_path(&file_a)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?
+    let df_a = CsvReadOptions::default()
+        .try_into_reader_with_file_path(Some(file_a.into()))
+        .map_err(|e: PolarsError| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?
         .finish()
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+        .map_err(|e: PolarsError| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
 
-    let df_b = CsvReader::from_path(&file_b)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?
+    let df_b = CsvReadOptions::default()
+        .try_into_reader_with_file_path(Some(file_b.into()))
+        .map_err(|e: PolarsError| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?
         .finish()
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+        .map_err(|e: PolarsError| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
 
     // 2. Hash Keys
     // This is where Rust shines. We'll simulate a fast key extraction.
@@ -61,7 +62,7 @@ fn diff_files(py: Python, file_a: String, file_b: String, key_cols: Vec<String>)
     let mut schema_diff = Vec::new();
     
     for (name, dtype) in schema_a.iter() {
-        if let Some(dtype_b) = schema_b.get(name) {
+        if let Some(dtype_b) = schema_b.get(name.as_str()) {
             if dtype != dtype_b {
                 let diff = pyo3::types::PyDict::new(py);
                 diff.set_item("column", name.as_str())?;
@@ -75,16 +76,16 @@ fn diff_files(py: Python, file_a: String, file_b: String, key_cols: Vec<String>)
     // Null Counts
     let null_counts = pyo3::types::PyDict::new(py);
     for col in df_a.get_column_names() {
-        if let Ok(s_a) = df_a.column(col) {
-             let count_a = s_a.null_count();
+        if let Ok(s_a) = df_a.column(col.as_str()) {
+             let count_a = s_a.null_count() as u64;
              // Check B
-             let count_b = match df_b.column(col) {
-                 Ok(s_b) => s_b.null_count(),
-                 Err(_) => 0 // Column missing in B
+             let count_b = match df_b.column(col.as_str()) {
+                 Ok(s_b) => s_b.null_count() as u64,
+                 Err(_) => 0u64 // Column missing in B
              };
              
              let counts = vec![count_a, count_b];
-             null_counts.set_item(col, counts)?;
+             null_counts.set_item(col.as_str(), counts)?;
         }
     }
 
