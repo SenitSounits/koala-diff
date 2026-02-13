@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "koala-diff"
-version = "0.1.0"
+version = "0.1.1"
 description = "High-performance data diff tool in Rust."
 readme = "README.md"
 authors = [
@@ -16,6 +16,27 @@ dependencies = [
     "jinja2>=3.0.0",
     "pyarrow>=14.0.0"
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Archiving :: Mirroring", 
+    "Topic :: Utilities"
+]
+
+[project.urls]
+Homepage = "https://github.com/godalida/koala-diff"
+Repository = "https://github.com/godalida/koala-diff"
+Documentation = "https://github.com/godalida/koala-diff#readme"
+Issues = "https://github.com/godalida/koala-diff/issues"
 
 [project.optional-dependencies]
 dev = [
