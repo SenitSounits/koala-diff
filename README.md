@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Koala Diff Logo" width="200">
+  <img src="https://raw.githubusercontent.com/godalida/koala-diff/main/assets/logo.png" alt="Koala Diff Logo" width="200">
 </p>
 
 <h1 align="center">Koala Diff</h1>
@@ -18,8 +18,8 @@
   <a href="https://github.com/godalida/koala-diff/actions">
     <img src="https://img.shields.io/github/actions/workflow/status/godalida/koala-diff/CI.yml?branch=main" alt="Tests">
   </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/pypi/l/koala-diff" alt="License">
+  <a href="https://github.com/godalida/koala-diff/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/godalida/koala-diff?color=orange" alt="License">
   </a>
 </p>
 
