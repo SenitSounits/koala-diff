@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <img src="https://raw.githubusercontent.com/godalida/koala-diff/main/assets/report_hero.jpg" alt="Koala Diff Report Hero" width="800">
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/koala-diff/">
     <img src="https://img.shields.io/pypi/v/koala-diff?color=green" alt="PyPI">
   </a>
@@ -35,6 +39,53 @@ Built in **Rust** 🦀 for speed, wrapped in **Python** 🐍 for ease-of-use. It
 *   **Rust-Powered Analytics:** Go beyond row counts. Track **Value Variance**, **Null Drift**, and **Match Integrity** per column.
 *   **Professional Dashboards:** Auto-generates premium, stakeholder-ready HTML reports with status badges and join attribution.
 *   **Deep-Dive API:** Extract mismatched records as Polars DataFrames for instant remediation.
+
+---
+
+## 📈 The "Magic" Benchmark
+
+> **"Process 100M rows on a laptop in seconds, not minutes."**
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/godalida/koala-diff/main/assets/benchmark_100m.png" alt="Koala Diff Benchmarks" width="800">
+</p>
+
+### ⚡ Performance at a Glance
+*   **Time:** 🟦🟦 **1x** (Koala) vs 🟦🟦🟦🟦🟦 **3x** (Polars) vs 🟦🟦...🟦 **30x+** (Pandas)
+*   **RAM:** 🟩 **0.4GB** (Koala Diff) vs 🟩🟩🟩🟩🟩🟩🟩🟩 **12GB+** (Polars)
+*   **Edge:** Native Rust `XXHash64` handles massive joins locally without cluster overhead.
+
+---
+
+### 🧐 Why not just use Polars/Spark?
+
+While Polars and Spark are incredible for general data processing, **Koala Diff** is a specialized tool for **Data Quality & Regression**:
+
+| Feature | Polars / Spark | 🚀 Koala Diff |
+| :--- | :--- | :--- |
+| **Specialization** | General Purpose ETL | **Data Quality & Diffing** |
+| **Memory** | High (Join-heavy) | **Ultra-Low (Streaming)** |
+| **Output** | Raw DataFrames | **Pro Dashboards + Metrics** |
+| **Logic** | Manual Join/Filter code | **Out-of-the-box Analytics** |
+| **Stakeholders** | Engineer-facing | **Business-Ready Reports** |
+
+*Koala Diff doesn't replace your processing engine; it verifies that its output is correct.*
+
+---
+
+---
+
+*> Benchmarks run on MacBook Pro M3 Max.*
+
+---
+
+## 🎯 Common Use Cases
+
+*   **ETL Regression Testing:** Automatically verify that your daily pipeline didn't accidentally mutate 1 million rows after a code change.
+*   **Data Migration Validation:** Ensure 100% parity when moving data between systems (e.g., Hive to Snowflake or S3 to BigQuery).
+*   **Environment Drift Detection:** Compare **Production** vs. **Staging** datasets to find out why your model is behaving differently.
+*   **Compliance Auditing:** Generate unalterable HTML snapshots of data changes for regulatory or financial reviews.
+*   **CI/CD for Data:** Run `koala-diff` in your CI pipeline to block PRs that introduce unexpected data quality regressions.
 
 ---
 
@@ -80,16 +131,7 @@ print(mismatch_df.head())
 koala-diff production.csv staging.csv --key user_id --output report.html
 ```
 
-## 📊 Performance Benchmarks
 
-| Dataset Size | Tool | Time | Memory |
-| :--- | :--- | :--- | :--- |
-| **10M Rows** | Pandas | 🐢 120s | 16GB (OOM) |
-| | **Koala Diff** | 🚀 **2.5s** | **250MB** |
-| **100M Rows** | Spark | 🚜 45s | Cluster |
-| | **Koala Diff** | 🚀 **18s** | **450MB** |
-
-*> Benchmarks run on MacBook Pro M3 Max.*
 
 ## 🏗 Architecture
 
