@@ -30,7 +30,6 @@
 
 <p align="center">
   <a href="#-quick-start">🚀 Quickstart</a> |
-  <a href="https://koaladatalab.com">🏠 Home</a> |
   <a href="https://github.com/godalida/koala-diff/issues">🚩 Issues</a> |
   <a href="#-the-magic-benchmark">📊 Benchmarks</a>
 </p>
