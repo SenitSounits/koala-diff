@@ -16,8 +16,8 @@
   <a href="https://pypi.org/project/koala-diff/">
     <img src="https://img.shields.io/pypi/v/koala-diff?color=green" alt="PyPI">
   </a>
-  <a href="https://pepy.tech/project/koala-diff">
-    <img src="https://img.shields.io/pepy/dt/koala-diff?color=blue" alt="Downloads">
+  <a href="https://pepy.tech/projects/koala-diff">
+    <img src="https://static.pepy.tech/personalized-badge/koala-diff?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads" alt="PyPI Downloads">
   </a>
   <a href="https://github.com/godalida/koala-diff/actions">
     <img src="https://img.shields.io/github/actions/workflow/status/godalida/koala-diff/CI.yml?branch=main" alt="Tests">
