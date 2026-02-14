@@ -14,17 +14,25 @@
 
 <p align="center">
   <a href="https://pypi.org/project/koala-diff/">
-    <img src="https://img.shields.io/pypi/v/koala-diff?color=green" alt="PyPI">
+    <img src="https://img.shields.io/pypi/v/koala-diff?color=007FFF" alt="PyPI">
   </a>
   <a href="https://pepy.tech/projects/koala-diff">
-    <img src="https://static.pepy.tech/personalized-badge/koala-diff?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=BLUE&left_text=downloads" alt="PyPI Downloads">
+    <img src="https://static.pepy.tech/personalized-badge/koala-diff?period=total&units=INTERNATIONAL_SYSTEM&left_color=grey&right_color=BLUE&left_text=downloads" alt="PyPI Downloads">
   </a>
   <a href="https://github.com/godalida/koala-diff/actions">
     <img src="https://img.shields.io/github/actions/workflow/status/godalida/koala-diff/CI.yml?branch=main" alt="Tests">
   </a>
+  <img src="https://img.shields.io/pypi/pyversions/koala-diff?color=6e42c1" alt="Python Versions">
   <a href="https://github.com/godalida/koala-diff/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/godalida/koala-diff?color=orange" alt="License">
+    <img src="https://img.shields.io/github/license/godalida/koala-diff?color=white" alt="License">
   </a>
+</p>
+
+<p align="center">
+  <a href="#-quick-start">🚀 Quickstart</a> |
+  <a href="https://koaladatalab.com">🏠 Home</a> |
+  <a href="https://github.com/godalida/koala-diff/issues">🚩 Issues</a> |
+  <a href="#-the-magic-benchmark">📊 Benchmarks</a>
 </p>
 
 ---
