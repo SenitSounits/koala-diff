@@ -61,7 +61,7 @@ jobs:
           path: dist
 
   macos:
-    runs-on: macos-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         target: [x86_64, aarch64]
