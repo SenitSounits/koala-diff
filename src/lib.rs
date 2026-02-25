@@ -5,7 +5,7 @@ use polars::prelude::*;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
-use std::ops::Sub;
+// No longer needed
 
 /// Compares two CSV or Parquet files and returns a difference summary
 ///
@@ -81,20 +81,7 @@ fn diff_files<'py>(
         JoinArgs::new(JoinType::Inner).with_suffix(Some("_right".into())),
     );
 
-    // We collect basic counts using streaming
-    let count_lf = joined_lf.clone().select([len().alias("matched")]);
-    let count_res = count_lf
-        .with_new_streaming(true)
-        .collect()
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-    let matched = count_res
-        .column("matched")
-        .unwrap()
-        .get(0)
-        .unwrap()
-        .try_extract::<u32>()
-        .unwrap_or(0u32) as usize;
-
+    // Height of A and B
     let height_a = lf_a
         .clone()
         .select([len().alias("len")])
@@ -120,21 +107,108 @@ fn diff_files<'py>(
         .try_extract::<u32>()
         .unwrap_or(0) as usize;
 
-    let removed = if height_a > matched {
-        height_a - matched
-    } else {
-        0
-    };
-    let added = if height_b > matched {
-        height_b - matched
-    } else {
-        0
-    };
+    // 2.3 Build Large Aggregation for Single Pass
+    let mut aggs = Vec::new();
+    aggs.push(len().alias("_total_matched"));
 
-    // 2.3 Per-Column Advanced Statistics
-    let column_stats = PyDict::new(py);
     let mut total_modified_mask: Option<Expr> = None;
 
+    for (col_name, dtype_a) in schema_a.iter() {
+        let name_str = col_name.as_str();
+        if keys_strs.contains(&name_str) {
+            continue;
+        }
+
+        if schema_b.contains(name_str) {
+            let right_name = format!("{}_right", name_str);
+            let dtype_b = schema_b.get(name_str).unwrap();
+
+            // Diff count
+            let is_diff_expr = col(name_str).eq_missing(col(&right_name)).not();
+            aggs.push(
+                is_diff_expr
+                    .clone()
+                    .cast(DataType::Float64)
+                    .sum()
+                    .alias(&format!("{}_diff_count", name_str)),
+            );
+
+            // Track total modified rows
+            total_modified_mask = match total_modified_mask {
+                Some(m) => Some(m.or(is_diff_expr)),
+                None => Some(is_diff_expr),
+            };
+
+            // Null counts
+            aggs.push(
+                col(name_str)
+                    .is_null()
+                    .cast(DataType::Int32)
+                    .sum()
+                    .alias(&format!("{}_null_a", name_str)),
+            );
+            aggs.push(
+                col(&right_name)
+                    .is_null()
+                    .cast(DataType::Int32)
+                    .sum()
+                    .alias(&format!("{}_null_b", name_str)),
+            );
+
+            // Max Diff (numeric)
+            if dtype_a.is_numeric() && dtype_b.is_numeric() {
+                let diff_expr = col(name_str).cast(DataType::Float64)
+                    - col(&right_name).cast(DataType::Float64);
+                let abs_diff = when(diff_expr.clone().gt(0.0))
+                    .then(diff_expr.clone())
+                    .otherwise(diff_expr * lit(-1.0));
+                aggs.push(abs_diff.max().alias(&format!("{}_max_diff", name_str)));
+            }
+        }
+    }
+
+    if let Some(mask) = &total_modified_mask {
+        aggs.push(
+            mask.clone()
+                .cast(DataType::Float64)
+                .sum()
+                .alias("_total_modified"),
+        );
+    }
+
+    // Run the massive aggregation pass
+    let stats_res = joined_lf
+        .clone()
+        .select(aggs)
+        .with_new_streaming(true)
+        .collect()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+    let matched = stats_res
+        .column("_total_matched")
+        .unwrap()
+        .get(0)
+        .unwrap()
+        .try_extract::<f64>()
+        .unwrap_or(0.0) as usize;
+    let modified_rows_count = if total_modified_mask.is_some() {
+        stats_res
+            .column("_total_modified")
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .try_extract::<f64>()
+            .unwrap_or(0.0) as usize
+    } else {
+        0
+    };
+
+    let removed = height_a.saturating_sub(matched);
+    let added = height_b.saturating_sub(matched);
+    let identical_rows_count = matched.saturating_sub(modified_rows_count);
+
+    // 2.4 Assemble Stats Dictionary
+    let column_stats = PyDict::new(py);
     for (col_name, dtype_a) in schema_a.iter() {
         let name_str = col_name.as_str();
         let is_key = keys_strs.contains(&name_str);
@@ -154,39 +228,14 @@ fn diff_files<'py>(
                 stats.set_item("match_rate", 100.0)?;
                 stats.set_item("all_match", true)?;
             } else {
-                let right_name = format!("{}_right", name_str);
-
-                // Compare values and handle nulls
-                let is_diff_expr = col(name_str).eq_missing(col(&right_name)).not();
-
-                // Track total modified rows
-                total_modified_mask = match total_modified_mask {
-                    Some(m) => Some(m.or(is_diff_expr.clone())),
-                    None => Some(is_diff_expr.clone()),
-                };
-
-                // Calculate diff count for this column
-                let col_diff_lf = joined_lf.clone().select([is_diff_expr
-                    .clone()
-                    .cast(DataType::UInt32)
-                    .sum()
-                    .alias("diff_count")]);
-
-                let col_res = col_diff_lf
-                    .with_new_streaming(true)
-                    .collect()
-                    .map_err(|e| {
-                        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
-                    })?;
-                let diff_count = col_res
-                    .column("diff_count")
+                let diff_count = stats_res
+                    .column(&format!("{}_diff_count", name_str))
                     .unwrap()
                     .get(0)
                     .unwrap()
                     .try_extract::<f64>()
                     .unwrap_or(0.0) as usize;
-
-                let match_count = matched - diff_count;
+                let match_count = matched.saturating_sub(diff_count);
                 let match_rate = if matched > 0 {
                     (match_count as f64 / matched as f64) * 100.0
                 } else {
@@ -198,83 +247,44 @@ fn diff_files<'py>(
                 stats.set_item("match_rate", match_rate)?;
                 stats.set_item("all_match", diff_count == 0)?;
 
-                // Max Value Diff (if numeric)
                 if dtype_a.is_numeric() && dtype_b.is_numeric() {
-                    let diff_expr = col(name_str).cast(DataType::Float64)
-                        - col(&right_name).cast(DataType::Float64);
-                    // Manually calculate abs() if method not found
-                    let abs_diff = when(diff_expr.clone().gt(0.0))
-                        .then(diff_expr.clone())
-                        .otherwise(diff_expr * lit(-1.0));
-
-                    let max_diff_res = joined_lf
-                        .clone()
-                        .select([abs_diff.max().alias("max_diff")])
-                        .with_new_streaming(true)
-                        .collect();
-
-                    if let Ok(res) = max_diff_res {
-                        let max_abs_diff = res
-                            .column("max_diff")
-                            .unwrap()
-                            .get(0)
-                            .unwrap()
-                            .try_extract::<f64>()
-                            .unwrap_or(0.0);
-                        stats.set_item("max_value_diff", max_abs_diff)?;
+                    if let Ok(col) = stats_res.column(&format!("{}_max_diff", name_str)) {
+                        let max_v = col.get(0).unwrap().try_extract::<f64>().unwrap_or(0.0);
+                        stats.set_item("max_value_diff", max_v)?;
                     }
                 }
 
-                // Null Diff
-                let null_res = joined_lf
-                    .clone()
-                    .select([
-                        col(name_str)
-                            .is_null()
-                            .cast(DataType::Int32)
-                            .sum()
-                            .alias("null_a"),
-                        col(&right_name)
-                            .is_null()
-                            .cast(DataType::Int32)
-                            .sum()
-                            .alias("null_b"),
-                    ])
-                    .with_new_streaming(true)
-                    .collect();
+                let n_a = stats_res
+                    .column(&format!("{}_null_a", name_str))
+                    .unwrap()
+                    .get(0)
+                    .unwrap()
+                    .try_extract::<i32>()
+                    .unwrap_or(0);
+                let n_b = stats_res
+                    .column(&format!("{}_null_b", name_str))
+                    .unwrap()
+                    .get(0)
+                    .unwrap()
+                    .try_extract::<i32>()
+                    .unwrap_or(0);
+                stats.set_item("null_count_diff", (n_b - n_a) as i64)?;
 
-                if let Ok(res) = null_res {
-                    let n_a = res
-                        .column("null_a")
-                        .unwrap()
-                        .get(0)
-                        .unwrap()
-                        .try_extract::<i32>()
-                        .unwrap_or(0);
-                    let n_b = res
-                        .column("null_b")
-                        .unwrap()
-                        .get(0)
-                        .unwrap()
-                        .try_extract::<i32>()
-                        .unwrap_or(0);
-                    stats.set_item("null_count_diff", (n_b - n_a) as i64)?;
-                }
-
-                // Samples if mismatched
+                // Samples (separate small pass)
                 if diff_count > 0 {
+                    let right_name = format!("{}_right", name_str);
+                    let is_diff_expr = col(name_str).eq_missing(col(&right_name)).not();
                     let sample_head = joined_lf
                         .clone()
                         .filter(is_diff_expr)
                         .limit(5)
-                        .collect() // Samples are small, no need for streaming here but limit is important
+                        .collect()
                         .map_err(|e| {
                             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
                         })?;
 
                     let sample_keys = pyo3::types::PyList::empty(py);
                     let sample_values = pyo3::types::PyList::empty(py);
-
                     for i in 0..sample_head.height() {
                         let mut key_map = String::new();
                         for k in &keys_strs {
@@ -282,7 +292,6 @@ fn diff_files<'py>(
                             key_map.push_str(&format!("{}: {} ", k, val));
                         }
                         sample_keys.append(key_map.trim())?;
-
                         let val_a = sample_head.column(name_str).unwrap().get(i).unwrap();
                         let val_b = sample_head.column(&right_name).unwrap().get(i).unwrap();
                         sample_values.append(format!("{} -> {}", val_a, val_b))?;
@@ -298,33 +307,13 @@ fn diff_files<'py>(
         column_stats.set_item(name_str, stats)?;
     }
 
-    let modified_rows_count = match &total_modified_mask {
-        Some(mask) => {
-            let res = joined_lf
-                .clone()
-                .filter(mask.clone())
-                .select([len().alias("count")])
-                .with_new_streaming(true)
-                .collect()
-                .unwrap();
-            res.column("count")
-                .unwrap()
-                .get(0)
-                .unwrap()
-                .try_extract::<u32>()
-                .unwrap_or(0) as usize
-        }
-        None => 0,
-    };
-    let identical_rows_count = matched - modified_rows_count;
-
     // --- Final Assembly ---
     let dict = pyo3::types::PyDict::new(py);
     dict.set_item("total_rows_a", height_a)?;
     dict.set_item("total_rows_b", height_b)?;
-    dict.set_item("joined_count", matched)?; // Keys match
-    dict.set_item("identical_rows_count", identical_rows_count)?; // Keys AND values match
-    dict.set_item("modified_rows_count", modified_rows_count)?; // Keys match but values differ
+    dict.set_item("joined_count", matched)?;
+    dict.set_item("identical_rows_count", identical_rows_count)?;
+    dict.set_item("modified_rows_count", modified_rows_count)?;
     dict.set_item("added", added)?;
     dict.set_item("removed", removed)?;
     dict.set_item("column_stats", column_stats)?;

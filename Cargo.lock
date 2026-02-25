@@ -1230,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "koala_diff"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "ahash",
  "indicatif",
