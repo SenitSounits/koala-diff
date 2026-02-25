@@ -52,35 +52,40 @@ class DataDiff:
         if not self.file_a or not self.file_b:
             raise ValueError("No comparison has been run yet.")
             
-        # Read files
-        def read_df(path):
+        # Scan files lazily
+        def scan_df(path):
             if path.endswith(".parquet") or path.endswith(".pq"):
-                return pl.read_parquet(path)
+                return pl.scan_parquet(path)
             if path.endswith(".json"):
-                return pl.read_json(path)
+                # Standard JSON doesn't support lazy scanning in Polars yet
+                return pl.read_json(path).lazy()
             if path.endswith(".jsonl") or path.endswith(".ndjson"):
-                return pl.read_ndjson(path)
-            return pl.read_csv(path)
+                return pl.scan_ndjson(path)
+            return pl.scan_csv(path)
 
-        df_a = read_df(self.file_a)
-        df_b = read_df(self.file_b)
+        lf_a = scan_df(self.file_a)
+        lf_b = scan_df(self.file_b)
 
         # Join on keys
-        inner = df_a.join(df_b, on=self.key_columns, suffix="_right")
+        inner = lf_a.join(lf_b, on=self.key_columns, suffix="_right")
         
         # Build a filter mask for any column difference
         mask = None
-        for col in df_a.columns:
-            if col in self.key_columns:
+        for col_name in lf_a.collect_schema().names():
+            if col_name in self.key_columns:
                 continue
-            if col in df_b.columns:
-                # Compare values and handle nulls
-                col_diff = (pl.col(col) != pl.col(f"{col}_right")) | (pl.col(col).is_null() != pl.col(f"{col}_right").is_null())
-                if mask is None:
-                    mask = col_diff
-                else:
-                    mask = mask | col_diff
+            
+            # Compare values and handle nulls
+            # We use neq_missing equivalent: (a != b) | (a.is_null() != b.is_null())
+            # In modern Polars, we can also use pl.col(col_name).eq_missing(pl.col(f"{col_name}_right")).not_()
+            col_diff = pl.col(col_name).eq_missing(pl.col(f"{col_name}_right")).not_()
+            
+            if mask is None:
+                mask = col_diff
+            else:
+                mask = mask | col_diff
         
         if mask is not None:
-            return inner.filter(mask)
-        return pl.DataFrame(schema=inner.schema)
+            # We collect using streaming to keep memory usage low
+            return inner.filter(mask).collect(streaming=True)
+        return pl.DataFrame(schema=inner.collect_schema())
