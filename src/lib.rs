@@ -72,8 +72,7 @@ fn diff_files<'py>(
     let keys: Vec<Expr> = _key_cols.iter().map(|s| col(s.as_str())).collect();
     let keys_strs: Vec<&str> = _key_cols.iter().map(|s| s.as_str()).collect();
 
-    // 2.1 Matches and Modifications
-    // Join A and B to find common rows and then compare columns
+    // 2.2 Perform the Join (Lazy)
     let joined_lf = lf_a.clone().join(
         lf_b.clone(),
         keys.clone(),
@@ -81,36 +80,72 @@ fn diff_files<'py>(
         JoinArgs::new(JoinType::Inner).with_suffix(Some("_right".into())),
     );
 
-    // Height of A and B
-    let height_a = lf_a
-        .clone()
-        .select([len().alias("len")])
-        .with_new_streaming(true)
-        .collect()
-        .unwrap()
-        .column("len")
-        .unwrap()
-        .get(0)
-        .unwrap()
-        .try_extract::<u32>()
-        .unwrap_or(0) as usize;
-    let height_b = lf_b
-        .clone()
-        .select([len().alias("len")])
-        .with_new_streaming(true)
-        .collect()
-        .unwrap()
-        .column("len")
-        .unwrap()
-        .get(0)
-        .unwrap()
-        .try_extract::<u32>()
-        .unwrap_or(0) as usize;
+    // 2.2 Pre-Calculation: Height and Uniqueness (Small passes)
+    // We don't use streaming here because these are lightweight and streaming adds overhead for small files
+    let get_meta = |lf: LazyFrame, name: &str, key: &str| -> PyResult<(usize, usize)> {
+        let res = lf
+            .select([len().alias("total"), col(key).n_unique().alias("unique")])
+            .collect()
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Error reading {}: {}",
+                    name, e
+                ))
+            })?;
 
-    // 2.3 Build Large Aggregation for Single Pass
+        let total = res
+            .column("total")
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .try_extract::<u32>()
+            .unwrap_or(0) as usize;
+        let unique = res
+            .column("unique")
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .try_extract::<u32>()
+            .unwrap_or(0) as usize;
+
+        if unique < total && total > 0 {
+            println!(
+                "⚠️ WARNING: Join keys are not unique in {} ({} unique / {} total).",
+                name, unique, total
+            );
+        }
+        Ok((total, unique))
+    };
+
+    let (height_a, unique_a) = get_meta(lf_a.clone(), "File A", keys_strs[0])?;
+    let (height_b, unique_b) = get_meta(lf_b.clone(), "File B", keys_strs[0])?;
+
+    // 2.2.1 Join Safety Guard (Cartesian Product Estimation)
+    // If keys are not unique, the worst case join size is (non-unique_a * non-unique_b)
+    // We'll use a conservative heuristic: if either has duplicates, we check the ratio.
+    if unique_a < height_a || unique_b < height_b {
+        let dups_a = height_a - unique_a;
+        let dups_b = height_b - unique_b;
+
+        // Worst case: all duplicates match the same key
+        // This is a simplified check to prevent the 10TB explosion.
+        if dups_a > 1000 && dups_b > 1000 {
+            let msg = format!(
+                "❌ ABORTED: Potential Cartesian Product Explosion detected!\n\
+                File A: {} duplicates, File B: {} duplicates.\n\
+                This could result in a multi-terabyte memory allocation.\n\
+                Please refine your 'key_columns' to be more unique.",
+                dups_a, dups_b
+            );
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(msg));
+        }
+    }
+
+    // 2.3 Core Statistics Calculation
+
+    // 2.3.1 Build Statistics Query
     let mut aggs = Vec::new();
     aggs.push(len().alias("_total_matched"));
-
     let mut total_modified_mask: Option<Expr> = None;
 
     for (col_name, dtype_a) in schema_a.iter() {
@@ -118,12 +153,9 @@ fn diff_files<'py>(
         if keys_strs.contains(&name_str) {
             continue;
         }
-
         if schema_b.contains(name_str) {
             let right_name = format!("{}_right", name_str);
             let dtype_b = schema_b.get(name_str).unwrap();
-
-            // Diff count
             let is_diff_expr = col(name_str).eq_missing(col(&right_name)).not();
             aggs.push(
                 is_diff_expr
@@ -132,14 +164,10 @@ fn diff_files<'py>(
                     .sum()
                     .alias(&format!("{}_diff_count", name_str)),
             );
-
-            // Track total modified rows
             total_modified_mask = match total_modified_mask {
                 Some(m) => Some(m.or(is_diff_expr)),
                 None => Some(is_diff_expr),
             };
-
-            // Null counts
             aggs.push(
                 col(name_str)
                     .is_null()
@@ -154,8 +182,6 @@ fn diff_files<'py>(
                     .sum()
                     .alias(&format!("{}_null_b", name_str)),
             );
-
-            // Max Diff (numeric)
             if dtype_a.is_numeric() && dtype_b.is_numeric() {
                 let diff_expr = col(name_str).cast(DataType::Float64)
                     - col(&right_name).cast(DataType::Float64);
@@ -176,7 +202,7 @@ fn diff_files<'py>(
         );
     }
 
-    // Run the massive aggregation pass
+    // Run the main statistics pass (Streaming is only forced here for big data)
     let stats_res = joined_lf
         .clone()
         .select(aggs)
@@ -207,7 +233,19 @@ fn diff_files<'py>(
     let added = height_b.saturating_sub(matched);
     let identical_rows_count = matched.saturating_sub(modified_rows_count);
 
-    // 2.4 Assemble Stats Dictionary
+    // 2.4 Global Sample Pass (Fetch samples for ALL columns in one pass)
+    let global_samples = if let Some(mask) = total_modified_mask {
+        joined_lf
+            .clone()
+            .filter(mask)
+            .limit(100) // Fetch up to 100 modified rows once
+            .collect()
+            .ok()
+    } else {
+        None
+    };
+
+    // 2.5 Assemble Stats Dictionary
     let column_stats = PyDict::new(py);
     for (col_name, dtype_a) in schema_a.iter() {
         let name_str = col_name.as_str();
@@ -270,34 +308,36 @@ fn diff_files<'py>(
                     .unwrap_or(0);
                 stats.set_item("null_count_diff", (n_b - n_a) as i64)?;
 
-                // Samples (separate small pass)
+                // Extract samples from biological sample buffer in memory
                 if diff_count > 0 {
-                    let right_name = format!("{}_right", name_str);
-                    let is_diff_expr = col(name_str).eq_missing(col(&right_name)).not();
-                    let sample_head = joined_lf
-                        .clone()
-                        .filter(is_diff_expr)
-                        .limit(5)
-                        .collect()
-                        .map_err(|e| {
-                            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
-                        })?;
+                    if let Some(samples) = &global_samples {
+                        let right_name = format!("{}_right", name_str);
+                        let sample_keys = pyo3::types::PyList::empty(py);
+                        let sample_values = pyo3::types::PyList::empty(py);
 
-                    let sample_keys = pyo3::types::PyList::empty(py);
-                    let sample_values = pyo3::types::PyList::empty(py);
-                    for i in 0..sample_head.height() {
-                        let mut key_map = String::new();
-                        for k in &keys_strs {
-                            let val = sample_head.column(k).unwrap().get(i).unwrap();
-                            key_map.push_str(&format!("{}: {} ", k, val));
+                        let mut found_samples = 0;
+                        for i in 0..samples.height() {
+                            let val_a = samples.column(name_str).unwrap().get(i).unwrap();
+                            let val_b = samples.column(&right_name).unwrap().get(i).unwrap();
+
+                            // Only include if THIS specific column differs in this row
+                            if val_a != val_b {
+                                let mut key_map = String::new();
+                                for k in &keys_strs {
+                                    let val = samples.column(k).unwrap().get(i).unwrap();
+                                    key_map.push_str(&format!("{}: {} ", k, val));
+                                }
+                                sample_keys.append(key_map.trim())?;
+                                sample_values.append(format!("{} -> {}", val_a, val_b))?;
+                                found_samples += 1;
+                                if found_samples >= 5 {
+                                    break;
+                                }
+                            }
                         }
-                        sample_keys.append(key_map.trim())?;
-                        let val_a = sample_head.column(name_str).unwrap().get(i).unwrap();
-                        let val_b = sample_head.column(&right_name).unwrap().get(i).unwrap();
-                        sample_values.append(format!("{} -> {}", val_a, val_b))?;
+                        stats.set_item("mismatched_sample_keys", sample_keys)?;
+                        stats.set_item("mismatched_value_samples", sample_values)?;
                     }
-                    stats.set_item("mismatched_sample_keys", sample_keys)?;
-                    stats.set_item("mismatched_value_samples", sample_values)?;
                 }
             }
         } else {
